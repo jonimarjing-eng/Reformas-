@@ -1,0 +1,8 @@
+{
+  "name": "AutoReforma",
+  "description": "Gestión y seguimiento de pedidos de reformas de vehículos con matrícula, fecha de creación, estado, marca, códigos de reforma, descripción de reformas y cliente.",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}

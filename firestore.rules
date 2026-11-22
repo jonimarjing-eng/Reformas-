@@ -1,0 +1,188 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Pillar 0: Global default-deny safety net
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // Phase 3: Hardened Global Primitives
+    function isValidId(id) {
+      return id is string
+        && id.size() >= 1
+        && id.size() <= 128
+        && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isVerifiedUser() {
+      return isSignedIn() && request.auth.token.email_verified == true;
+    }
+
+    // Pillar 2: Standalone Validation Blueprint (Anti-Update-Gap)
+    // Synchronized verbatim with firebase-blueprint.json
+    function isValidOrder(data) {
+      return data.keys().hasAll([
+          'ownerId',
+          'licensePlate',
+          'orderDate',
+          'status',
+          'vehicleBrand',
+          'reformCodes',
+          'vehicleReforms',
+          'clientName',
+          'labPrice',
+          'finalPrice',
+          'profit',
+          'createdAt',
+          'updatedAt'
+        ])
+        && data.keys().hasOnly([
+          'ownerId',
+          'licensePlate',
+          'orderDate',
+          'status',
+          'vehicleBrand',
+          'vehicleModel',
+          'reformCodes',
+          'vehicleReforms',
+          'clientName',
+          'clientContact',
+          'labPrice',
+          'finalPrice',
+          'profit',
+          'notes',
+          'createdAt',
+          'updatedAt'
+        ])
+        && data.ownerId is string
+        && data.ownerId.size() >= 1
+        && data.ownerId.size() <= 128
+        && data.ownerId.matches('^[a-zA-Z0-9_\\-]+$')
+        && data.ownerId == request.auth.uid
+        && data.licensePlate is string
+        && data.licensePlate.size() >= 2
+        && data.licensePlate.size() <= 20
+        && data.licensePlate.matches('^[A-Z0-9 \\-]+$')
+        && data.orderDate is string
+        && data.orderDate.size() == 10
+        && data.orderDate.matches('^\\d{4}-\\d{2}-\\d{2}$')
+        && data.status is string
+        && data.status.size() >= 1
+        && data.status.size() <= 40
+        && data.status in [
+          'pendiente_laboratorio',
+          'pendiente_cliente',
+          'pendiente_modificacion_vplus',
+          'pendiente_itv',
+          'rechazado_itv',
+          'pendiente_cobrar',
+          'terminado',
+          'cancelado'
+        ]
+        && data.vehicleBrand is string
+        && data.vehicleBrand.size() >= 1
+        && data.vehicleBrand.size() <= 80
+        && (!('vehicleModel' in data) || (data.vehicleModel is string && data.vehicleModel.size() <= 80))
+        && data.reformCodes is list
+        && data.reformCodes.size() >= 1
+        && data.reformCodes.size() <= 20
+        && data.reformCodes[0] is string
+        && data.reformCodes[0].size() >= 1
+        && data.reformCodes[0].size() <= 20
+        && data.vehicleReforms is string
+        && data.vehicleReforms.size() >= 2
+        && data.vehicleReforms.size() <= 1500
+        && data.clientName is string
+        && data.clientName.size() >= 1
+        && data.clientName.size() <= 120
+        && (!('clientContact' in data) || (data.clientContact is string && data.clientContact.size() <= 120))
+        && data.labPrice is number
+        && data.labPrice >= 0
+        && data.labPrice <= 1000000
+        && data.finalPrice is number
+        && data.finalPrice >= 0
+        && data.finalPrice <= 1000000
+        && data.profit is number
+        && data.profit >= -1000000
+        && data.profit <= 1000000
+        && (!('notes' in data) || (data.notes is string && data.notes.size() <= 1000))
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isStatusTransitionUpdate() {
+      return incoming().diff(existing()).affectedKeys().hasOnly([
+        'status',
+        'updatedAt'
+      ]);
+    }
+
+    function isOrderEditUpdate() {
+      return incoming().diff(existing()).affectedKeys().hasOnly([
+        'licensePlate',
+        'orderDate',
+        'status',
+        'vehicleBrand',
+        'vehicleModel',
+        'reformCodes',
+        'vehicleReforms',
+        'clientName',
+        'clientContact',
+        'labPrice',
+        'finalPrice',
+        'profit',
+        'notes',
+        'updatedAt'
+      ]);
+    }
+
+    // Collection: /orders/{orderId}
+    match /orders/{orderId} {
+      // Pillar 3 & 6: Owner-only single document read with ID hardening
+      allow get: if isVerifiedUser()
+        && isValidId(orderId)
+        && existing().ownerId == request.auth.uid;
+
+      // Pillar 8: Secure list query enforced on resource.data (zero get() lookups)
+      allow list: if isVerifiedUser()
+        && existing().ownerId == request.auth.uid;
+
+      // Pillar 2, 3, 5 & Temporal Integrity: Strict create validation
+      allow create: if isVerifiedUser()
+        && isValidId(orderId)
+        && isValidOrder(incoming())
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time;
+
+      // Pillar 2, 3, 4 & Terminal State Locking: Action-based update
+      allow update: if isVerifiedUser()
+        && isValidId(orderId)
+        && isValidOrder(incoming())
+        && existing().ownerId == request.auth.uid
+        && incoming().ownerId == existing().ownerId
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time
+        && existing().status != 'terminado'
+        && existing().status != 'cancelado'
+        && (isStatusTransitionUpdate() || isOrderEditUpdate());
+
+      // Pillar 3 & 6: Owner-only delete with ID hardening
+      allow delete: if isVerifiedUser()
+        && isValidId(orderId)
+        && existing().ownerId == request.auth.uid;
+    }
+  }
+}

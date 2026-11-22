@@ -1,0 +1,130 @@
+{
+  "entities": {
+    "Order": {
+      "title": "Pedido de Reforma de Vehículo",
+      "description": "Registro de un pedido de reforma u homologación de vehículo perteneciente a un usuario autenticado, incluyendo importes económicos.",
+      "type": "object",
+      "properties": {
+        "ownerId": {
+          "type": "string",
+          "description": "UID del propietario del pedido en Firebase Auth.",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "licensePlate": {
+          "type": "string",
+          "description": "Matrícula del vehículo normalizada en mayúsculas.",
+          "minLength": 2,
+          "maxLength": 20,
+          "pattern": "^[A-Z0-9 \\-]+$"
+        },
+        "orderDate": {
+          "type": "string",
+          "format": "date",
+          "description": "Fecha de creación del pedido en formato YYYY-MM-DD.",
+          "minLength": 10,
+          "maxLength": 10,
+          "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+        },
+        "status": {
+          "type": "string",
+          "description": "Estado actual del pedido de reforma.",
+          "enum": [
+            "pendiente_laboratorio",
+            "pendiente_cliente",
+            "pendiente_modificacion_vplus",
+            "pendiente_itv",
+            "rechazado_itv",
+            "pendiente_cobrar",
+            "terminado",
+            "cancelado"
+          ],
+          "maxLength": 40
+        },
+        "vehicleBrand": {
+          "type": "string",
+          "description": "Marca del vehículo.",
+          "minLength": 1,
+          "maxLength": 80
+        },
+        "vehicleModel": {
+          "type": "string",
+          "description": "Modelo o versión opcional del vehículo.",
+          "maxLength": 80
+        },
+        "reformCodes": {
+          "type": "array",
+          "description": "Lista de códigos de reforma del Manual de Reformas de Vehículos (1 a 20 códigos, cada uno hasta 20 caracteres)."
+        },
+        "vehicleReforms": {
+          "type": "string",
+          "description": "Descripción detallada de las reformas realizadas o solicitadas en el vehículo.",
+          "minLength": 2,
+          "maxLength": 1500
+        },
+        "clientName": {
+          "type": "string",
+          "description": "Nombre del cliente o taller solicitante.",
+          "minLength": 1,
+          "maxLength": 120
+        },
+        "clientContact": {
+          "type": "string",
+          "description": "Teléfono o correo de contacto opcional del cliente.",
+          "maxLength": 120
+        },
+        "labPrice": {
+          "type": "number",
+          "description": "Coste o precio del laboratorio en euros (0 a 1000000)."
+        },
+        "finalPrice": {
+          "type": "number",
+          "description": "Precio final cobrado al cliente en euros (0 a 1000000)."
+        },
+        "profit": {
+          "type": "number",
+          "description": "Ganancia neta en euros (precio final menos precio de laboratorio, -1000000 a 1000000)."
+        },
+        "notes": {
+          "type": "string",
+          "description": "Observaciones internas opcionales sobre el expediente.",
+          "maxLength": 1000
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Marca de tiempo de creación generada por el servidor (inmutable)."
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Marca de tiempo de última actualización generada por el servidor."
+        }
+      },
+      "required": [
+        "ownerId",
+        "licensePlate",
+        "orderDate",
+        "status",
+        "vehicleBrand",
+        "reformCodes",
+        "vehicleReforms",
+        "clientName",
+        "labPrice",
+        "finalPrice",
+        "profit",
+        "createdAt",
+        "updatedAt"
+      ]
+    }
+  },
+  "firestore": {
+    "/orders/{orderId}": {
+      "schema": {
+        "$ref": "#/entities/Order"
+      },
+      "description": "Colección de pedidos de reformas de vehículos aislados estrictamente por propietario (ownerId)."
+    }
+  }
+}
